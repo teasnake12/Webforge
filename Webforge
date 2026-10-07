@@ -1,0 +1,872 @@
+#!/usr/bin/env bash
+# ============================================================
+# WebForge v3 — Auto-installer
+# Crée toute l'arborescence du plugin Claude Code
+# Usage : bash setup-webforge.sh [target_dir]
+# ============================================================
+
+set -euo pipefail
+
+TARGET="${1:-./webforge}"
+
+echo "🚀 Installation de WebForge v3 dans $TARGET"
+
+# ---------- Structure ----------
+mkdir -p "$TARGET"/{.claude-plugin,agents,skills,commands,hooks,bin,evals,output-styles,monitors}
+mkdir -p "$TARGET"/skills/{site-cloning,design-system,legal-compliance,security-audit,performance,accessibility-audit,seo-technique,i18n-setup,api-documentation,database-design,ci-cd-pipeline,incident-response,remote-control,push-notifications}
+
+cd "$TARGET"
+
+# ============================================================
+# MANIFESTS
+# ============================================================
+
+cat > .claude-plugin/plugin.json <<'EOF'
+{
+  "name": "webforge",
+  "description": "Équipe de développement web complète pilotée par IA : clonage clean-room, design system, dev front/back, sécurité, conformité légale, performance, QA, contrôle à distance WhatsApp/Telegram, notifications push vers mobile.",
+  "author": { "name": "WebForge", "email": "hello@webforge.dev" },
+  "homepage": "https://github.com/your-org/webforge",
+  "repository": "https://github.com/your-org/webforge",
+  "license": "MIT",
+  "keywords": ["web","dev","security","legal","performance","remote","notifications"],
+  "commands": "./commands",
+  "agents": "./agents",
+  "skills": "./skills",
+  "hooks": "./hooks/hooks.json",
+  "outputStyles": "./output-styles",
+  "mcpServers": "./.mcp.json",
+  "lspServers": "./.lsp.json",
+  "userConfig": {
+    "telegram_bot_token": { "type": "string", "title": "Telegram Bot Token", "sensitive": true, "required": false },
+    "whatsapp_phone_id": { "type": "string", "title": "WhatsApp Phone Number ID", "sensitive": true, "required": false },
+    "whatsapp_token": { "type": "string", "title": "WhatsApp Access Token", "sensitive": true, "required": false },
+    "authorized_users": { "type": "string", "title": "Utilisateurs autorisés", "description": "IDs séparés par des virgules", "sensitive": false, "required": true },
+    "push_provider": { "type": "string", "title": "Provider push", "default": "telegram", "sensitive": false },
+    "push_recipients": { "type": "string", "title": "Destinataires push", "sensitive": true, "required": true }
+  }
+}
+EOF
+
+cat > .claude-plugin/marketplace.json <<'EOF'
+{
+  "name": "webforge-marketplace",
+  "owner": { "name": "WebForge", "email": "hello@webforge.dev" },
+  "plugins": [
+    {
+      "name": "webforge",
+      "source": "./",
+      "description": "Équipe de dev web complète pilotée par IA",
+      "version": "3.0.0",
+      "tags": ["web","dev","security","legal","performance","remote","notifications"]
+    }
+  ]
+}
+EOF
+
+# ============================================================
+# AGENTS
+# ============================================================
+
+cat > agents/architect.md <<'EOF'
+---
+name: architect
+description: Chef d'orchestre de WebForge. À utiliser en premier pour tout projet web complexe.
+tools: Read, Glob, Grep, WebFetch, Task
+model: opus
+---
+Tu es l'architecte principal de WebForge.
+## Processus
+1. Cadrage (type de projet, stack, contraintes, juridiction)
+2. Recherche (WebFetch si URL fournie)
+3. PLAN.md avec phases, agents, livrables, gates
+4. Délégation via Task aux agents spécialisés
+5. Validation : aucun livrable final sans gates sécurité + légal + perf + a11y + QA
+## Gates bloquants
+- Lighthouse ≥ 95 partout
+- 0 CVE critique
+- WCAG 2.2 AA validé
+- Mentions légales + RGPD complets
+- Tests E2E 100% verts
+## Règles
+- Tu ne codes jamais toi-même
+- Signale tout risque juridique
+- En cas d'ambiguïté, propose 2 options avec trade-offs
+EOF
+
+cat > agents/cloner.md <<'EOF'
+---
+name: cloner
+description: Reverse-engineering clean-room d'un site.
+tools: Read, Write, Bash, WebFetch, Glob
+model: sonnet
+---
+Spécialiste clonage éthique.
+## Livrables dans ./site-specs/
+- design-tokens.json
+- structure.md
+- components.md
+- assets-list.md
+- COPYRIGHT.md
+## Règles strictes
+- Vérifie robots.txt et CGU avant tout scraping
+- Ne télécharge jamais logos/images/polices propriétaires
+- Ne recopie jamais le code source
+- Documente toute similarité forte comme "inspiration à transformer"
+EOF
+
+cat > agents/frontend-dev.md <<'EOF'
+---
+name: frontend-dev
+description: Dev front-end senior. UI/UX accessible, animations, design system.
+tools: Read, Write, Edit, Bash, Glob, Grep
+model: sonnet
+---
+Dev front-end senior (React/Next/Vue/Svelte).
+## Standards non négociables
+- WCAG 2.2 AA (contraste, focus, ARIA, clavier)
+- Composants atomiques documentés
+- Design tokens uniquement
+- prefers-reduced-motion respecté
+- Responsive 360 / 768 / 1440
+- Touch targets ≥ 44px
+## Livrables
+Code + tests unitaires + rapport Lighthouse ≥ 95
+EOF
+
+cat > agents/backend-dev.md <<'EOF'
+---
+name: backend-dev
+description: Dev back-end senior. API, DB, auth, intégrations.
+tools: Read, Write, Edit, Bash, Glob, Grep
+model: sonnet
+---
+Dev back-end senior (Node/Python/Go).
+## Standards
+- Validation zod/pydantic systématique
+- Auth OAuth2/OIDC, MFA recommandée
+- Secrets via env vars
+- Migrations versionnées et réversibles
+- Logs structurés sans données perso
+- Rate limiting sur endpoints publics
+## Livrables
+API documentée OpenAPI + tests d'intégration + rapport CVE
+EOF
+
+cat > agents/security-auditor.md <<'EOF'
+---
+name: security-auditor
+description: Audit OWASP Top 10, dépendances, secrets, headers.
+tools: Read, Bash, Glob, Grep, WebFetch
+model: sonnet
+---
+Auditeur appsec.
+## Checklist
+- OWASP Top 10 2021 complet
+- npm audit / pip-audit / cargo audit
+- git history scan (gitleaks)
+- Headers : CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy
+- Rate limiting, verrouillage compte, sessions
+- Validation uploads (MIME, taille, isolation)
+## Livrable
+SECURITY.md : vulnérabilités CVSS, correctifs, statut gates
+EOF
+
+cat > agents/legal-compliance.md <<'EOF'
+---
+name: legal-compliance
+description: Génère mentions légales, politique confidentialité, CGV/CGU, cookies, RGPD.
+tools: Read, Write, WebFetch
+model: sonnet
+---
+Juriste web/numérique.
+## À collecter
+- Pays éditeur + audience principale
+- Type de site
+- Collecte données, cookies tiers, paiements
+## Livrables dans ./legal/
+- mentions-legales.md
+- politique-confidentialite.md
+- cgv.md / cgu.md
+- registre-traitements.md (art. 30)
+- bandeau-cookies.md
+## Règle
+Toujours indiquer "à valider par un avocat avant publication".
+EOF
+
+cat > agents/performance-optimizer.md <<'EOF'
+---
+name: performance-optimizer
+description: Optimise Core Web Vitals, SEO technique, cache, images, bundles.
+tools: Read, Edit, Bash, WebFetch
+model: sonnet
+---
+Objectifs : LCP < 2.5s, INP < 200ms, CLS < 0.1, Lighthouse ≥ 95.
+## Checklist
+Images (AVIF/WebP, lazy), fonts (subset, swap), JS (splitting, tree-shaking),
+CSS (critique inline, purge), cache CDN, SEO (sitemap, robots, JSON-LD), i18n.
+## Livrable
+PERF-REPORT.md avec avant/après chiffré.
+EOF
+
+cat > agents/qa-tester.md <<'EOF'
+---
+name: qa-tester
+description: QA senior. Tests E2E Playwright, régression visuelle.
+tools: Read, Write, Bash, Glob
+model: sonnet
+---
+QA senior.
+## Livrables
+- Suite Playwright dans tests/e2e/
+- Snapshots visuels
+- Rapport couverture
+- Bugs reproductibles avec sévérité P0-P3
+EOF
+
+cat > agents/remote-operator.md <<'EOF'
+---
+name: remote-operator
+description: Traite les messages WhatsApp/Telegram et exécute les modifications du site à distance.
+tools: Read, Write, Edit, Bash, Task
+model: sonnet
+---
+Agent de contrôle à distance.
+## Flux
+1. Réception message via channel MCP
+2. Auth : vérifie ID expéditeur contre authorized_users
+3. Parsing intention
+4. Guardrails (chemins autorisés, actions sensibles)
+5. Proposition de diff à l'utilisateur (YES/NO)
+6. Sur YES : exécute via frontend-dev / backend-dev
+7. Commit + push + deploy
+8. Notification retour + push
+## Guardrails non négociables
+- Liste blanche utilisateurs
+- Liste blanche chemins modifiables
+- Confirmation obligatoire pour suppression, prix, email, légal
+- Audit trail dans ./.webforge/audit.log
+- Rollback auto si tests échouent
+## Mapping
+| Message | Action |
+|---|---|
+| "rajoute les 3 photos" | upload public/assets/, insertion galerie, commit |
+| "rajoute cette date" | update data/events.json, rebuild |
+| "titre plus grand" | édition tokens typo, rebuild |
+| "change le numéro" | grep replace dans content/, commit |
+EOF
+
+cat > agents/notifier.md <<'EOF'
+---
+name: notifier
+description: Envoie des notifications push du site vers les mobiles (RDV, alertes, résumés).
+tools: Read, Write, Bash, Task
+model: sonnet
+---
+Agent de notifications sortantes.
+## Cas d'usage
+- RDV : "2 RDV aujourd'hui à 14h et 16h avec [nom] + photo"
+- Nouvelle commande e-commerce
+- Résumé quotidien
+- Alerte sécurité
+- Confirmation de modification distante
+- Rappel J-1
+## Providers
+Telegram (riche, gratuit), WhatsApp Business (templates), ntfy.sh (open source), Expo (app mobile).
+## Format
+Chaque notification : titre, corps avec noms/heures/détails, photos, actions [Voir] [Confirmer] [Annuler].
+## Livrables
+- Module notify/ dans le code du site
+- Templates FR/EN
+- Tests unitaires
+- Doc par provider
+EOF
+
+# ============================================================
+# SKILLS
+# ============================================================
+
+cat > skills/site-cloning/SKILL.md <<'EOF'
+---
+name: site-cloning
+description: Clonage clean-room d'un site. Utiliser pour "copie ce site" ou "inspire-toi de".
+---
+# Clonage clean-room
+## Étape 1 — Reconnaissance
+Vérifier robots.txt et CGU. Si interdit → inspiration uniquement.
+## Étape 2 — Extraction (Playwright MCP)
+Arborescence, styles calculés, tokens, états, responsive.
+## Étape 3 — Reconstruction
+Design system original, assets originaux, COPYRIGHT.md.
+## Étape 4 — Gate
+Vérifier qu'aucun fichier source original n'a été copié.
+EOF
+
+cat > skills/design-system/SKILL.md <<'EOF'
+---
+name: design-system
+description: Génère un design system complet (tokens, composants, doc).
+---
+# Design system
+1. tokens.json (couleurs, typo, spacing, radius, shadows, motion)
+2. Contraste WCAG AA sur toutes les paires
+3. Échelle typo modulaire (ratio 1.25 ou 1.333)
+4. Grille responsive 4/8/12 colonnes
+5. Composants : Button, Input, Card, Modal, Nav, Toast
+6. Documentation localisée
+EOF
+
+cat > skills/legal-compliance/SKILL.md <<'EOF'
+---
+name: legal-compliance
+description: Conformité légale RGPD, cookies, mentions, CGV.
+---
+# Conformité légale
+Checklist : mentions légales, politique confidentialité, cookies, CGV/CGU, registre art. 30, DPO si requis, durées conservation, droits RGPD.
+Toujours : avertissement "à valider par un avocat".
+EOF
+
+cat > skills/security-audit/SKILL.md <<'EOF'
+---
+name: security-audit
+description: Audit OWASP Top 10, dépendances, secrets, headers.
+---
+# Audit sécurité
+OWASP Top 10 2021, npm audit, gitleaks, headers (CSP/HSTS/X-Frame/Referrer/Permissions), rate limiting, uploads.
+Livrable : SECURITY.md avec CVSS.
+EOF
+
+cat > skills/performance/SKILL.md <<'EOF'
+---
+name: performance
+description: Optimisation Core Web Vitals, SEO technique.
+---
+# Performance
+Cibles : LCP < 2.5s, INP < 200ms, CLS < 0.1, Lighthouse ≥ 95.
+Images, fonts, JS, CSS, cache, SEO, i18n.
+Livrable : PERF-REPORT.md avec avant/après.
+EOF
+
+cat > skills/accessibility-audit/SKILL.md <<'EOF'
+---
+name: accessibility-audit
+description: Audit WCAG 2.2 AA complet avec axe-core et Pa11y.
+---
+# Accessibilité
+- Contraste, focus visible, navigation clavier, ARIA
+- axe-core + Pa11y automatisés
+- Tests manuels lecteur d'écran (NVDA, VoiceOver)
+- Rapport avec fixes priorisés P0-P3
+EOF
+
+cat > skills/seo-technique/SKILL.md <<'EOF'
+---
+name: seo-technique
+description: Sitemap, robots, données structurées, hreflang, canonical.
+---
+# SEO technique
+- sitemap.xml + robots.txt
+- JSON-LD (Organization, Product, Article, BreadcrumbList)
+- hreflang, canonical, meta OG/Twitter
+- Core Web Vitals
+- Audit + correctifs
+EOF
+
+cat > skills/i18n-setup/SKILL.md <<'EOF'
+---
+name: i18n-setup
+description: Configuration multilingue (next-intl, i18next).
+---
+# i18n
+- Config next-intl ou i18next
+- Fichiers de locale structurés
+- Workflow de traduction
+- Détection navigateur + sélecteur manuel
+- SEO multilingue (hreflang)
+EOF
+
+cat > skills/api-documentation/SKILL.md <<'EOF'
+---
+name: api-documentation
+description: Génération OpenAPI/Swagger + Postman.
+---
+# API documentation
+- Spec OpenAPI 3.1 depuis le code
+- Collection Postman
+- Exemples de requêtes/réponses
+- Authentification documentée
+- Versioning
+EOF
+
+cat > skills/database-design/SKILL.md <<'EOF'
+---
+name: database-design
+description: Modélisation, migrations, index, politiques RLS.
+---
+# Database design
+- Schéma normalisé
+- Migrations versionnées réversibles
+- Index sur colonnes filtrées
+- RLS (Row Level Security)
+- Politiques de backup
+EOF
+
+cat > skills/ci-cd-pipeline/SKILL.md <<'EOF'
+---
+name: ci-cd-pipeline
+description: GitHub Actions / GitLab CI avec gates qualité.
+---
+# CI/CD
+- Lint + typecheck + tests
+- Gates : Lighthouse ≥ 95, 0 CVE critique, WCAG AA
+- Preview deployments
+- Rollback automatique
+- Notifications Slack/Telegram
+EOF
+
+cat > skills/incident-response/SKILL.md <<'EOF'
+---
+name: incident-response
+description: Runbook rollback, communication, post-mortem.
+---
+# Incident response
+- Détection (monitoring, alertes)
+- Rollback (< 5 min)
+- Communication stakeholders
+- Post-mortem blameless
+- Actions correctives trackées
+EOF
+
+cat > skills/remote-control/SKILL.md <<'EOF'
+---
+name: remote-control
+description: Contrôle à distance du site via WhatsApp/Telegram en langage naturel.
+---
+# Remote Control
+## Architecture
+Message entrant → Channel MCP → remote-operator → proposition → confirmation → exécution → deploy → notification retour.
+## Setup Telegram
+1. @BotFather → token
+2. /webforge:remote telegram <token>
+3. @userinfobot → chat_id
+4. Ajouter à authorized_users
+5. Lancer Claude Code avec --channels
+## Setup WhatsApp
+1. Meta for Developers → app WhatsApp Business
+2. phone_number_id + token permanent
+3. Webhook vers Cloudflare Worker
+4. Configurer
+## Guardrails obligatoires
+- Liste blanche utilisateurs
+- Liste blanche chemins
+- Confirmation pour actions destructives
+- Audit trail
+- Rollback auto si tests échouent
+EOF
+
+cat > skills/push-notifications/SKILL.md <<'EOF'
+---
+name: push-notifications
+description: Envoie des notifications du site vers les mobiles.
+---
+# Push Notifications
+## Déclencheurs
+Nouveau RDV, commande, message contact, alerte sécurité, résumé quotidien, rappel J-1.
+## Template RDV
+🗓️ Nouveau RDV
+👤 {{nom}}
+🕐 {{date}} à {{heure}}
+📞 {{telephone}}
+📝 {{motif}}
+[Photo] [Détails] [Confirmer]
+## Providers
+- Telegram : sendMessage + sendPhoto
+- WhatsApp : template approuvé
+- ntfy : POST https://ntfy.sh/<topic>
+- Expo : app mobile dédiée
+## Bonnes pratiques
+- Jamais de données sensibles en clair
+- Photos : 1024px max, WebP
+- Rate limiting : 10/h par destinataire
+- Opt-in RGPD
+EOF
+
+# ============================================================
+# COMMANDS
+# ============================================================
+
+cat > commands/forge.md <<'EOF'
+---
+description: Lance un projet web complet
+argument-hint: <description | URL>
+allowed-tools: Task, Read, Write, Bash
+---
+Invoque l'agent architect avec : $ARGUMENTS
+Pipeline : cadrage → PLAN.md → cloner → front/back → sécurité + légal → perf → QA → deploy.
+Aucun livrable sans tous les gates verts.
+EOF
+
+cat > commands/clone-site.md <<'EOF'
+---
+description: Clone un site en clean-room
+argument-hint: <URL>
+allowed-tools: Task, WebFetch, Write, Bash
+---
+Invoque cloner sur $ARGUMENTS puis frontend-dev pour reconstruire.
+Refuse toute copie d'asset protégé.
+EOF
+
+cat > commands/audit-security.md <<'EOF'
+---
+description: Audit sécurité complet
+argument-hint: [chemin]
+allowed-tools: Task, Read, Bash
+---
+Invoque security-auditor sur $ARGUMENTS (ou dossier courant).
+EOF
+
+cat > commands/audit-legal.md <<'EOF'
+---
+description: Génère la conformité légale
+argument-hint: <pays> <type>
+allowed-tools: Task, Write, WebFetch
+---
+Invoque legal-compliance pour produire le dossier legal/ complet.
+EOF
+
+cat > commands/optimize.md <<'EOF'
+---
+description: Optimisation performance
+allowed-tools: Task, Read, Edit, Bash
+---
+Invoque performance-optimizer. Cible Lighthouse ≥ 95.
+EOF
+
+cat > commands/migrate.md <<'EOF'
+---
+description: Migration de stack
+argument-hint: <source> <cible>
+allowed-tools: Task, Read, Write, Bash
+---
+Détecte stack source, génère plan, exécute conversion progressive avec validation.
+EOF
+
+cat > commands/design-system.md <<'EOF'
+---
+description: Génère un design system
+allowed-tools: Task, Write
+---
+Invoque la skill design-system et produis tokens + composants + doc.
+EOF
+
+cat > commands/remote.md <<'EOF'
+---
+description: Configure le contrôle à distance WhatsApp/Telegram
+argument-hint: <telegram|whatsapp> <token> [phone_id]
+allowed-tools: Bash, Read, Write
+---
+Configure le channel de contrôle à distance avec les credentials fournis.
+EOF
+
+cat > commands/notify.md <<'EOF'
+---
+description: Configure et teste les notifications push
+argument-hint: <provider> [recipient]
+allowed-tools: Bash, Read, Write, Task
+---
+Configure le provider push et envoie une notification de test.
+Vérifie l'opt-in RGPD des destinataires.
+EOF
+
+# ============================================================
+# HOOKS + BIN
+# ============================================================
+
+cat > hooks/hooks.json <<'EOF'
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "webforge-legal-scan", "description": "Bloque secrets et assets protégés" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "webforge-danger-guard", "description": "Refuse commandes destructives" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "webforge-gate-check", "description": "Bloque fin si gates non verts" }
+        ]
+      }
+    ]
+  }
+}
+EOF
+
+cat > bin/webforge-gate-check <<'EOF'
+#!/usr/bin/env node
+import { readFileSync, existsSync } from 'fs';
+const gates = [
+  { name: 'Sécurité', file: 'SECURITY.md', rule: s => !/CVE-(CRITICAL|HIGH)/.test(s) },
+  { name: 'Légal', file: 'legal/mentions-legales.md', rule: s => s.length > 500 },
+  { name: 'RGPD', file: 'legal/politique-confidentialite.md', rule: s => /registre|art\. 30/i.test(s) },
+  { name: 'Perf', file: 'PERF-REPORT.md', rule: s => /Lighthouse:\s*(9[5-9]|100)/.test(s) }
+];
+let failed = false;
+for (const g of gates) {
+  if (!existsSync(g.file)) { console.error(`❌ ${g.name}: manquant`); failed = true; continue; }
+  const c = readFileSync(g.file, 'utf8');
+  if (!g.rule(c)) { console.error(`❌ ${g.name}: gate non vert`); failed = true; }
+  else console.log(`✅ ${g.name}: OK`);
+}
+process.exit(failed ? 1 : 0);
+EOF
+
+cat > bin/webforge-legal-scan <<'EOF'
+#!/usr/bin/env node
+import { readFileSync } from 'fs';
+const input = JSON.parse(readFileSync(0, 'utf8'));
+const content = input.tool_input?.content || '';
+const path = input.tool_input?.file_path || '';
+const forbidden = [
+  { re: /(AKIA|ASIA)[A-Z0-9]{16}/, msg: 'AWS key' },
+  { re: /sk-[a-zA-Z0-9]{32,}/, msg: 'OpenAI/Stripe key' },
+  { re: /-----BEGIN (RSA|PRIVATE)/, msg: 'Clé privée' }
+];
+for (const f of forbidden) {
+  if (f.re.test(content)) {
+    console.error(`🚫 ${f.msg} dans ${path}. Bloqué.`);
+    process.exit(1);
+  }
+}
+process.exit(0);
+EOF
+
+cat > bin/webforge-danger-guard <<'EOF'
+#!/usr/bin/env node
+import { readFileSync } from 'fs';
+const input = JSON.parse(readFileSync(0, 'utf8'));
+const cmd = input.tool_input?.command || '';
+const dangers = [
+  /rm\s+-rf\s+\//,
+  /:\(\)\{.*\};:/,
+  /curl\s+[^|]+\|\s*(sh|bash)/,
+  /wget\s+[^|]+\|\s*(sh|bash)/,
+  /dd\s+if=.*of=\/dev\//
+];
+for (const d of dangers) {
+  if (d.test(cmd)) { console.error(`🚫 Commande destructive bloquée: ${cmd}`); process.exit(1); }
+}
+process.exit(0);
+EOF
+
+cat > bin/webforge-notify <<'EOF'
+#!/usr/bin/env node
+import { argv } from 'process';
+const [,, provider, recipient, title, body] = argv;
+const providers = {
+  telegram: async (to, t, b) => {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: to, text: `🔔 ${t}\n\n${b}` })
+    });
+  },
+  ntfy: async (to, t, b) => {
+    await fetch(`https://ntfy.sh/${to}`, { method: 'POST', body: `${t}\n${b}` });
+  }
+};
+await providers[provider]?.(recipient, title, body);
+console.log(`✅ Envoyé à ${recipient} via ${provider}`);
+EOF
+
+chmod +x bin/*
+
+# ============================================================
+# MCP + LSP + MONITORS
+# ============================================================
+
+cat > .mcp.json <<'EOF'
+{
+  "mcpServers": {
+    "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_TOKEN": "${GITHUB_TOKEN}" }
+    },
+    "sentry": {
+      "command": "npx",
+      "args": ["-y", "@sentry/mcp-server"],
+      "env": { "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}" }
+    },
+    "supabase": { "command": "npx", "args": ["-y", "@supabase/mcp-server"] }
+  }
+}
+EOF
+
+cat > .lsp.json <<'EOF'
+{
+  "lspServers": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": { ".ts": "typescript", ".tsx": "typescriptreact" }
+    },
+    "pyright": {
+      "command": "pyright-langserver",
+      "args": ["--stdio"],
+      "extensionToLanguage": { ".py": "python" }
+    },
+    "vue": {
+      "command": "vue-ts-lsp",
+      "args": ["--stdio"],
+      "extensionToLanguage": { ".vue": "vue" }
+    }
+  }
+}
+EOF
+
+cat > monitors/gate-watch.json <<'EOF'
+{
+  "name": "gate-watch",
+  "command": "node",
+  "args": ["./bin/gate-watch.js"],
+  "restartOnCrash": true,
+  "description": "Surveille Lighthouse, CVE et Sentry. Notifie Claude à chaque régression."
+}
+EOF
+
+# ============================================================
+# OUTPUT STYLES
+# ============================================================
+
+cat > output-styles/legal-strict.md <<'EOF'
+---
+name: legal-strict
+description: Ton formel, citations d'articles de loi, avertissements systématiques.
+---
+# Style : Legal Strict
+Tu rédiges comme un juriste senior.
+## Règles
+- Chaque affirmation cite l'article applicable (RGPD art. X, Code conso L. X).
+- Signale la juridiction (FR, UE, US).
+- Termine par "⚠️ À valider par un avocat avant publication."
+- Ton neutre, pas d'emoji, sections numérotées.
+- Jamais d'avis juridique définitif.
+## Format
+1. Objet
+2. Cadre juridique
+3. Obligations
+4. Modèle de clause
+5. Points de vigilance
+6. Avertissement final
+EOF
+
+cat > output-styles/security-paranoid.md <<'EOF'
+---
+name: security-paranoid
+description: Chaque réponse inclut risques, mitigations, CVSS.
+---
+# Style : Security Paranoid
+Pense comme un attaquant, écris comme un auditeur certifié.
+## Structure obligatoire
+1. Vecteur d'attaque
+2. Impact (CVSS + vecteur)
+3. Preuve (PoC)
+4. Mitigation (correctif)
+5. Risque résiduel
+6. Références (OWASP, CWE, CVE)
+## Règles
+- Zéro minimisation.
+- Tout accès non authentifié = critique par défaut.
+- CVE critiques = bloquantes.
+- Vocabulaire OWASP, CWE.
+EOF
+
+cat > output-styles/perf-obsessed.md <<'EOF'
+---
+name: perf-obsessed
+description: Chaque reco chiffrée avec impact Core Web Vitals.
+---
+# Style : Perf Obsessed
+## Structure obligatoire
+1. Métrique cible
+2. Valeur actuelle (mesurée)
+3. Valeur cible (source)
+4. Gain estimé (ms / points)
+5. Action (code)
+6. Coût (heures, complexité 1-5)
+7. Vérification
+## Budgets
+LCP < 2.5s, INP < 200ms, CLS < 0.1, bundle < 150 kB gzip.
+Jamais "ça devrait être plus rapide" → toujours chiffré.
+EOF
+
+cat > output-styles/ux-poetic.md <<'EOF'
+---
+name: ux-poetic
+description: Descriptions créatives des interactions et animations.
+---
+# Style : UX Poetic
+Pour chaque composant :
+1. Sensation (1-2 phrases évocatrices)
+2. Chorégraphie (timing, easing, durée)
+3. Signaux (hover, focus, active, loading, error)
+4. Accessibilité (reduced-motion, clavier, contraste)
+5. Mobile (tactile, cibles 48px)
+Jamais "c'est joli" → toujours l'effet sensoriel.
+EOF
+
+cat > output-styles/qa-forensic.md <<'EOF'
+---
+name: qa-forensic
+description: Repro steps obligatoires, sévérité P0-P3.
+---
+# Style : QA Forensic
+Chaque bug = un dossier complet :
+- Environnement (OS, navigateur, résolution, build)
+- Repro steps numérotées
+- Attendu vs observé
+- Preuves (screenshot, console, network)
+- Impact (utilisateurs, fréquence, contournement)
+- Sévérité justifiée P0-P3
+P0 = bloque livraison. P3 = cosmétique.
+Jamais "ça ne marche pas" → toujours attendu vs observé.
+EOF
+
+# ============================================================
+# EVALS + README
+# ============================================================
+
+cat > evals/evals.json <<'EOF'
+{
+  "evals": [
+    { "name": "clone-site-trigger", "prompt": "Clone https://exemple.com", "expect": { "skill": "site-cloning", "agent": "cloner" } },
+    { "name": "remote-control-trigger", "prompt": "Configure le contrôle Telegram", "expect": { "skill": "remote-control" } },
+    { "name": "notify-trigger", "prompt": "Envoie-moi une notif quand un RDV est pris", "expect": { "skill": "push-notifications", "agent": "notifier" } },
+    { "name": "gate-block", "prompt": "Termine le projet", "expect": { "gate_check": "fail_if_incomplete" } }
+  ]
+}
+EOF
+
+cat > README.md <<'EOF'
+# WebForge v3
+
+Équipe de développement web complète pilotée par IA.
+
+## Installation
+
+```bash
+claude plugin marketplace add your-org/webforge
+claude plugin install webforge@webforge-marketplace
